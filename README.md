@@ -1,1 +1,1 @@
-"# jarir-ahmed-user-info-capture" 
+composer require jarir-ahmed/user-info-capture
