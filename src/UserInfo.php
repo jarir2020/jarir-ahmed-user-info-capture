@@ -140,20 +140,40 @@ class UserInfo
     }
 
     /**
+     * Get the device type (Desktop, Mobile or Tablet) from the user agent.
+     *
+     * @return string
+     */
+    public static function getDevice(): string
+    {
+        $userAgent = self::getUserAgent();
+
+        // Tablets first — Android tablets omit the "Mobile" token.
+        if (preg_match('/iPad|Tablet|PlayBook|Silk|(Android(?!.*Mobile))/i', $userAgent)) {
+            return 'Tablet';
+        }
+        if (preg_match('/Mobile|iPhone|iPod|Android.*Mobile|Windows Phone|BlackBerry|Opera Mini/i', $userAgent)) {
+            return 'Mobile';
+        }
+
+        return 'Desktop';
+    }
+
+    /**
      * Get the operating system from the user agent string.
      *
      * @return string
      */
     public static function getOperatingSystem(): string
     {
-        $userAgent = $this->getUserAgent();
+        $userAgent = self::getUserAgent();
         $osArray = [
-            'Windows' => 'Win',
-            'Mac OS' => '(Mac_PowerPC)|(Macintosh)',
-            'Linux' => '(X11)|(Linux)',
+            'Windows' => '(Windows NT)|(Win)',
+            'iOS' => '(iPhone)|(iPad)|(iPod)',
+            'Mac OS' => '(Mac OS X)|(Mac_PowerPC)|(Macintosh)',
             'Android' => 'Android',
-            'iPhone' => 'iPhone',
-            'iPad' => 'iPad'
+            'Chrome OS' => 'CrOS',
+            'Linux' => '(X11)|(Linux)',
         ];
 
         foreach ($osArray as $os => $regex) {
@@ -172,18 +192,28 @@ class UserInfo
      */
     public static function getBrowser(): string
     {
-        $userAgent = $this->getUserAgent();
+        $userAgent = self::getUserAgent();
+
+        // Order matters: Edge/Opera/Chrome all carry "Chrome"/"Safari" tokens,
+        // so the more specific browsers must be matched first.
         $browserArray = [
-            'Chrome' => 'Chrome',
-            'Firefox' => 'Firefox',
-            'Safari' => 'Safari',
-            'Edge' => 'Edge',
-            'Internet Explorer' => '(MSIE)|(Trident/7)',
-            'Opera' => 'Opera'
+            'Edge' => 'Edg(e|A|iOS)?\/',
+            'Opera' => '(OPR\/)|(Opera)',
+            'Samsung Internet' => 'SamsungBrowser',
+            'Firefox' => '(Firefox\/)|(FxiOS)',
+            'Internet Explorer' => '(MSIE)|(Trident\/7)',
+            'Chrome' => '(Chrome\/)|(CriOS)',
+            'Safari' => 'Safari\/',
         ];
 
         foreach ($browserArray as $browser => $regex) {
             if (preg_match("/$regex/i", $userAgent)) {
+                // The "Safari" token also appears in Chrome UAs — only report
+                // Safari when no Chrome token is present.
+                if ($browser === 'Safari' && preg_match('/Chrome/i', $userAgent)) {
+                    continue;
+                }
+
                 return $browser;
             }
         }
@@ -198,21 +228,22 @@ class UserInfo
      */
     public static function getAllInfo(): array
     {
-        $ip = $this->getUserIp();
-        $ipInfo = $this->getIpInformation($ip);
+        $ip = self::getUserIp();
+        $ipInfo = self::getIpInformation($ip);
 
         return [
             'ip' => $ip,
-            'user_agent' => $this->getUserAgent(),
-            'referer' => $this->getReferer(),
-            'request_method' => $this->getRequestMethod(),
-            'request_time' => $this->getRequestTime(),
-            'browser_language' => $this->getBrowserLanguage(),
-            'request_uri' => $this->getRequestUri(),
-            'host' => $this->getHost(),
-            'protocol' => $this->getProtocol(),
-            'operating_system' => $this->getOperatingSystem(),
-            'browser' => $this->getBrowser(),
+            'user_agent' => self::getUserAgent(),
+            'referer' => self::getReferer(),
+            'request_method' => self::getRequestMethod(),
+            'request_time' => self::getRequestTime(),
+            'browser_language' => self::getBrowserLanguage(),
+            'request_uri' => self::getRequestUri(),
+            'host' => self::getHost(),
+            'protocol' => self::getProtocol(),
+            'device' => self::getDevice(),
+            'operating_system' => self::getOperatingSystem(),
+            'browser' => self::getBrowser(),
             'ip_info' => $ipInfo
         ];
     }
