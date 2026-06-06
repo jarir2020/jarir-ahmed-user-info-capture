@@ -7,17 +7,29 @@ class UserInfo
     /**
      * Get the user's IP address.
      *
+     * Defaults to REMOTE_ADDR, the only value a client cannot spoof. Forwarded
+     * headers (X-Forwarded-For / Client-IP) are honoured ONLY when $trustProxy is
+     * true — set that exclusively when the app sits behind a trusted reverse proxy,
+     * otherwise a client can forge any IP.
+     *
+     * @param bool $trustProxy Trust X-Forwarded-For / Client-IP headers.
      * @return string|null
      */
-    public static function getUserIp(): ?string
+    public static function getUserIp(bool $trustProxy = false): ?string
     {
-        if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
-            return $_SERVER['HTTP_CLIENT_IP'];
-        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            return $_SERVER['HTTP_X_FORWARDED_FOR'];
-        } else {
-            return $_SERVER['REMOTE_ADDR'];
+        if ($trustProxy) {
+            $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['HTTP_CLIENT_IP'] ?? '';
+            // XFF is a list "client, proxy1, proxy2" — take the first valid entry.
+            foreach (explode(',', $forwarded) as $candidate) {
+                $candidate = trim($candidate);
+                if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_IP)) {
+                    return $candidate;
+                }
+            }
         }
+
+        $remote = $_SERVER['REMOTE_ADDR'] ?? null;
+        return ($remote !== null && filter_var($remote, FILTER_VALIDATE_IP)) ? $remote : $remote;
     }
 
     /**
@@ -39,16 +51,26 @@ class UserInfo
      */
     public static function getIpInformation(string $ip): array
     {
-        $url = "http://ip-api.com/json/{$ip}";
-        $response = file_get_contents($url);
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            throw new \InvalidArgumentException('Invalid IP address.');
+        }
+        // Reject private/reserved ranges: not publicly routable and an SSRF vector
+        // if the IP originated from a spoofable header.
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            throw new \InvalidArgumentException('IP address is not publicly routable.');
+        }
+
+        $url = 'http://ip-api.com/json/' . rawurlencode($ip);
+        $context = stream_context_create(['http' => ['timeout' => 5]]);
+        $response = @file_get_contents($url, false, $context);
 
         if ($response === false) {
-            throw new \Exception("Unable to fetch IP information.");
+            throw new \RuntimeException('Unable to fetch IP information.');
         }
 
         $data = json_decode($response, true);
-        if ($data['status'] !== 'success') {
-            throw new \Exception("Failed to retrieve IP information.");
+        if (!is_array($data) || ($data['status'] ?? null) !== 'success') {
+            throw new \RuntimeException('Failed to retrieve IP information.');
         }
 
         return $data;
@@ -86,7 +108,7 @@ class UserInfo
      */
     public static function getRequestMethod(): string
     {
-        return $_SERVER['REQUEST_METHOD'];
+        return $_SERVER['REQUEST_METHOD'] ?? '';
     }
 
     /**
@@ -96,7 +118,7 @@ class UserInfo
      */
     public static function getRequestTime(): int
     {
-        return $_SERVER['REQUEST_TIME'];
+        return (int) ($_SERVER['REQUEST_TIME'] ?? time());
     }
 
     /**
@@ -116,7 +138,7 @@ class UserInfo
      */
     public static function getRequestUri(): string
     {
-        return $_SERVER['REQUEST_URI'];
+        return $_SERVER['REQUEST_URI'] ?? '';
     }
 
     /**
@@ -126,7 +148,7 @@ class UserInfo
      */
     public static function getHost(): string
     {
-        return $_SERVER['HTTP_HOST'];
+        return $_SERVER['HTTP_HOST'] ?? '';
     }
 
     /**
@@ -229,7 +251,15 @@ class UserInfo
     public static function getAllInfo(): array
     {
         $ip = self::getUserIp();
-        $ipInfo = self::getIpInformation($ip);
+        // IP geolocation needs a public IP and network access; never let it break capture.
+        $ipInfo = null;
+        if ($ip !== null) {
+            try {
+                $ipInfo = self::getIpInformation($ip);
+            } catch (\Throwable $e) {
+                $ipInfo = null;
+            }
+        }
 
         return [
             'ip' => $ip,

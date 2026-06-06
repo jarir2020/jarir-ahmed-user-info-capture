@@ -3,6 +3,7 @@
     "description": "A package to capture user's IP, user agent, screen size and fetch IP-related info.",
     "type": "library",
     "license": "MIT",
+    "keywords": ["user-agent", "ip", "device-detection", "request"],
     "authors": [
         {
             "name": "Jarir Ahmed",
@@ -14,10 +15,20 @@
             "JarirAhmed\\UserInfo\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "JarirAhmed\\UserInfo\\Tests\\": "tests/"
+        }
+    },
     "require": {
         "php": ">=7.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0"
+    },
+    "scripts": {
+        "test": "phpunit"
     },
     "minimum-stability": "dev",
     "prefer-stable": true
 }
-
