@@ -17,6 +17,12 @@ class Client
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 OPR/109.0.0.0',
     ];
 
+    private const ACCEPT_LANGUAGES = [
+        'en-US,en;q=0.9',
+        'en-GB,en;q=0.9',
+        'en-US,en;q=0.8,und;q=0.5',
+    ];
+
     /**
      * Fetch content from $url with a randomized User-Agent and timeout.
      *
@@ -28,10 +34,25 @@ class Client
     public function fetch(string $url, int $timeout = 5): string
     {
         $ua = self::USER_AGENTS[array_rand(self::USER_AGENTS)];
+        $acceptLanguage = self::ACCEPT_LANGUAGES[array_rand(self::ACCEPT_LANGUAGES)];
         $context = stream_context_create([
             'http' => [
                 'timeout' => $timeout,
-                'header' => "User-Agent: {$ua}\r\nAccept: application/json\r\n",
+                'header' => implode("\r\n", [
+                    "User-Agent: {$ua}",
+                    'Accept: application/json, text/plain, */*',
+                    "Accept-Language: {$acceptLanguage}",
+                    'Accept-Encoding: gzip, deflate, br',
+                    'Connection: keep-alive',
+                    'Upgrade-Insecure-Requests: 1',
+                    'Sec-Fetch-Dest: empty',
+                    'Sec-Fetch-Mode: cors',
+                    'Sec-Fetch-Site: cross-site',
+                    'Sec-CH-UA: "Chromium";v="124", "Not.A/Brand";v="8"',
+                    'Sec-CH-UA-Mobile: ?0',
+                    'Sec-CH-UA-Platform: "Windows"',
+                    '',
+                ]),
             ],
         ]);
 

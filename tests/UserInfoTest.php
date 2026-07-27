@@ -2,6 +2,8 @@
 
 namespace JarirAhmed\UserInfo\Tests;
 
+use JarirAhmed\UserInfo\Orchestration\ProviderOrchestrator;
+use JarirAhmed\UserInfo\Provider\ProviderInterface;
 use JarirAhmed\UserInfo\UserInfo;
 use PHPUnit\Framework\TestCase;
 
@@ -11,6 +13,12 @@ class UserInfoTest extends TestCase
     {
         $_SERVER['REMOTE_ADDR'] = '203.0.113.10';
         unset($_SERVER['HTTP_X_FORWARDED_FOR'], $_SERVER['HTTP_CLIENT_IP']);
+        UserInfo::setOrchestrator(null);
+    }
+
+    protected function tearDown(): void
+    {
+        UserInfo::setOrchestrator(null);
     }
 
     // --- IP spoofing protection ---------------------------------------------
@@ -46,6 +54,19 @@ class UserInfoTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         UserInfo::getIpInformation('192.168.1.1'); // no network call made
+    }
+
+    public function testGetAllInfoPropagatesIpLookupFailure()
+    {
+        $provider = $this->createMock(ProviderInterface::class);
+        $provider->method('getName')->willReturn('mock-provider');
+        $provider->method('fetch')->willThrowException(new \RuntimeException('all providers failed'));
+
+        UserInfo::setOrchestrator(new ProviderOrchestrator([$provider]));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('all providers failed');
+        UserInfo::getAllInfo();
     }
 
     // --- user-agent parsing -------------------------------------------------

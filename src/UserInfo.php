@@ -276,14 +276,9 @@ class UserInfo
     public static function getAllInfo(): array
     {
         $ip = self::getUserIp();
-        // IP geolocation needs a public IP and network access; never let it break capture.
         $ipInfo = null;
         if ($ip !== null) {
-            try {
-                $ipInfo = self::getIpInformation($ip);
-            } catch (\Throwable $e) {
-                $ipInfo = null;
-            }
+            $ipInfo = self::getIpInformation($ip);
         }
 
         return [
