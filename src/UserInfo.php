@@ -2,6 +2,14 @@
 
 namespace JarirAhmed\UserInfo;
 
+use JarirAhmed\UserInfo\Http\Client;
+use JarirAhmed\UserInfo\Orchestration\ProviderOrchestrator;
+use JarirAhmed\UserInfo\Provider\IpApiComProvider;
+use JarirAhmed\UserInfo\Provider\IpInfoIoProvider;
+use JarirAhmed\UserInfo\Provider\IpWhoIsProvider;
+use JarirAhmed\UserInfo\Provider\IpApiCoProvider;
+use JarirAhmed\UserInfo\Provider\IpApiIsProvider;
+
 class UserInfo
 {
     /**
@@ -60,20 +68,7 @@ class UserInfo
             throw new \InvalidArgumentException('IP address is not publicly routable.');
         }
 
-        $url = 'http://ip-api.com/json/' . rawurlencode($ip);
-        $context = stream_context_create(['http' => ['timeout' => 5]]);
-        $response = @file_get_contents($url, false, $context);
-
-        if ($response === false) {
-            throw new \RuntimeException('Unable to fetch IP information.');
-        }
-
-        $data = json_decode($response, true);
-        if (!is_array($data) || ($data['status'] ?? null) !== 'success') {
-            throw new \RuntimeException('Failed to retrieve IP information.');
-        }
-
-        return $data;
+        return self::getDefaultOrchestrator()->fetch($ip);
     }
 
     /**
@@ -241,6 +236,36 @@ class UserInfo
         }
 
         return 'Unknown Browser';
+    }
+
+    /** @var ProviderOrchestrator|null */
+    private static $orchestrator = null;
+
+    /**
+     * Configure a custom provider orchestrator (optional).
+     *
+     * @param ProviderOrchestrator|null $orchestrator
+     */
+    public static function setOrchestrator(?ProviderOrchestrator $orchestrator = null): void
+    {
+        self::$orchestrator = $orchestrator;
+    }
+
+    private static function getDefaultOrchestrator(): ProviderOrchestrator
+    {
+        if (self::$orchestrator !== null) {
+            return self::$orchestrator;
+        }
+
+        $client = new Client();
+
+        return new ProviderOrchestrator([
+            new IpApiComProvider($client),
+            new IpInfoIoProvider($client),
+            new IpWhoIsProvider($client),
+            new IpApiCoProvider($client),
+            new IpApiIsProvider($client),
+        ]);
     }
 
     /**
